@@ -6,14 +6,17 @@ export class Department {
   @PrimaryGeneratedColumn({ name: "department_id" })
   departmentId: number;
 
-  @Column({ name: "departmentname", nullable: true })
+  @Column({ name: "departmentname" })
   departmentName: string;
 
   @Column({ name: "departmentname2" })
   departmentName2: string;
 
   @Column({ name: "floor" })
-  Floor: number;
+  floor: number;
+
+  @Column({ name: "member", default: 0 })
+  member: number;
 
   @Column({ name: "is_default", default: 0 })
   isDefault: number;

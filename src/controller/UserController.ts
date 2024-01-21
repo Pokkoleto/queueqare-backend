@@ -5,6 +5,7 @@ import makeid from "../function/randomString";
 import { hash, compareSync, compare } from "bcryptjs";
 import config from "../config/config";
 import signJWT from "../function/signJWT";
+import { Department } from "../entity/Department";
 
 export default class UserController {
   async getRepository() {
@@ -20,6 +21,13 @@ export default class UserController {
   async one(request: Request, response: Response, next: NextFunction) {
     const user = await AppDataSource.getRepository(User).findOne({
       where: { userId: request.params.id },
+    });
+    response.status(200).json(user);
+  }
+
+  async getDoctor(request: Request, response: Response, next: NextFunction) {
+    const user = await AppDataSource.getRepository(User).find({
+      where: { role: "doctor" },
     });
     response.status(200).json(user);
   }
@@ -44,28 +52,49 @@ export default class UserController {
   }
 
   async register(req: Request, res: Response, next: NextFunction) {
-    let { name2, departmentId, role, name } = req.body;
-    const arr = name2.split(" ");
-    const username =
-      arr[0].toLowerCase() + "." + arr[1].slice(0, 3).toLowerCase();
-    // const username = name2;
-    const password = makeid(8);
+    let { userId, name, name2, departmentId, role } = req.body;
+    if (userId != null) {
+      const user = await AppDataSource.getRepository(User).update(
+        { userId: userId },
+        {
+          name: name,
+          name2: name2,
+          departmentId: departmentId,
+          role: role,
+        }
+      );
+      res.status(200).json({ message: "update success" });
+      return;
+    } else {
+      const arr = name2.split(" ");
+      const username =
+        arr[0].toLowerCase() + "." + arr[1].slice(0, 3).toLowerCase();
+      // const username = name2;
+      const password = makeid(8);
 
-    const hashpassword = await hash(password, 10);
+      const hashpassword = await hash(password, 10);
 
-    const info = new User();
-    info.username = username;
-    info.password = hashpassword;
-    if (name != null) {
-      info.name = name;
+      const info = new User();
+      info.username = username;
+      info.password = hashpassword;
+      if (name != null) {
+        info.name = name;
+      }
+      info.name2 = name2;
+      info.isActive = 1;
+      info.role = role;
+      info.departmentId = departmentId;
+
+      const users = await AppDataSource.getRepository(User).save(info);
+      const num = await AppDataSource.getRepository(Department)
+        .findOne({ where: { departmentId: departmentId } })
+        .then((value) => value.member);
+      await AppDataSource.getRepository(Department).update(
+        { departmentId: departmentId },
+        { member: num + 1 }
+      );
+      res.status(200).json({ username, password });
     }
-    info.name2 = name2;
-    info.isActive = 1;
-    info.role = role;
-    info.departmentId = departmentId;
-
-    const users = await AppDataSource.getRepository(User).save(info);
-    res.status(200).json({ username, password });
   }
 
   async login(req: Request, res: Response, next: NextFunction) {
@@ -73,9 +102,14 @@ export default class UserController {
     const user = await AppDataSource.getRepository(User).findOne({
       where: { username: username },
     });
+    if (!user) {
+      return res.status(404).json({
+        message: "No User Found",
+      });
+    }
     compare(password, user.password, (error, result) => {
       if (error) {
-        return res.status(401).json({
+        return res.status(402).json({
           message: "error",
         });
       } else if (result) {
@@ -93,11 +127,12 @@ export default class UserController {
               message: "Auth Successful",
               token,
               user: user,
+              status: 200,
             });
           }
         });
       } else {
-        return res.status(401).json({
+        return res.status(406).json({
           message: "Password Mismatch",
         });
       }
@@ -106,7 +141,52 @@ export default class UserController {
   }
 
   async deleteById(req: Request, res: Response, next: NextFunction) {
+    const user = await AppDataSource.getRepository(User).findOne({
+      where: { userId: req.params.id },
+    });
+    const department = await AppDataSource.getRepository(Department).findOne({
+      where: { departmentId: user.departmentId },
+    });
+    await AppDataSource.getRepository(Department).update(
+      { departmentId: user.departmentId },
+      { member: department.member - 1 }
+    );
     await AppDataSource.getRepository(User).delete({ userId: req.params.id });
     res.status(200).json({ message: "delete success" });
+  }
+
+  async getPassword(req: Request, res: Response, next: NextFunction) {
+    const user = await AppDataSource.getRepository(User).findOne({
+      where: { userId: req.params.id },
+    });
+    const password = user.password;
+    res.status(200).json({ password: user.password });
+  }
+
+  async manualRegister(req: Request, res: Response, next: NextFunction) {
+    let { username, password, name, name2, role } = req.body;
+    const hashpassword = await hash(password, 10);
+
+    const info = new User();
+    info.username = username;
+    info.password = hashpassword;
+    if (name != null) {
+      info.name = name;
+    }
+    info.name2 = name2;
+    info.isActive = 1;
+    info.role = role;
+    info.departmentId = 0;
+
+    const users = await AppDataSource.getRepository(User).save(info);
+    res.status(200).json({ username, password });
+  }
+
+  async logout(req: Request, res: Response, next: NextFunction) {
+    const user = await AppDataSource.getRepository(User).findOne({
+      where: { userId: req.params.id },
+    });
+    AppDataSource.getRepository(User).update(user.userId, { isActive: 0 });
+    res.status(200).json({ message: "logout success" });
   }
 }

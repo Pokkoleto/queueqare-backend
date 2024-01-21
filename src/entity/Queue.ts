@@ -21,6 +21,9 @@ export class Queue {
   @Column({ name: "token", nullable: true })
   token: string;
 
+  @Column({ name: "tel", nullable: true })
+  tel: string;
+
   @ManyToOne(() => Department, (department) => department.departmentId)
-    department: Department;
+  department: Department;
 }

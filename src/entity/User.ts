@@ -23,9 +23,15 @@ export class User {
   @Column({ name: "department_id" })
   departmentId: number;
 
-  @Column({ name: "tel", nullable: true  })
+  @Column({ name: "tel", nullable: true })
   tel: string;
 
   @Column({ name: "is_active" })
   isActive: number;
+
+  @Column({ name: "is_ready", default: 1 })
+  isReady: number;
+
+  @Column({ name: "check", default: 0 })
+  check: number;
 }

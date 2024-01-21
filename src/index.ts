@@ -10,11 +10,14 @@ import { User } from "./entity/User";
 import { Queue } from "./entity/Queue";
 // import { usertest } from "./controller/UserController"
 
+const cors = require("cors");
+
 AppDataSource.initialize()
   .then(async () => {
     const userRepository = AppDataSource.getRepository(User);
     // create express app
     const app = express();
+    app.use(cors());
     app.use(bodyParser.json());
 
     // app.get("/test4",(req,res,next)=>{console.log("dsfsdsfs"); next();}, usertest)

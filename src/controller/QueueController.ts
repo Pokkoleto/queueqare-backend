@@ -22,7 +22,7 @@ export default class DepartmentController {
     next: NextFunction
   ) {
     const department = await AppDataSource.getRepository(Queue).find({
-      where: { departmentId: request.params.departmentId, status: "waiting" },
+      where: { departmentId: request.params.id, status: "waiting" },
     });
     response.status(200).json(department);
   }
@@ -57,19 +57,31 @@ export default class DepartmentController {
   }
 
   async call(req: Request, res: Response, next: NextFunction) {
-    const queuenum = await AppDataSource.getRepository(Variable)
-      .findOne({ where: { name: "queue" } })
-      .then((value) => value.int);
-    const queue = await AppDataSource.getRepository(Queue).findOne({
-      where: { queueNumber: queuenum },
-    });
-    await AppDataSource.getRepository(Variable).update(
-      { name: "queue" },
-      { int: queuenum + 1 }
-    );
-    queue.status = "called";
-    await AppDataSource.getRepository(Queue).save(queue);
-    res.status(200).json(queue);
+    let cnt;
+    await AppDataSource.getRepository(User)
+      .find({
+        where: { role: "doctor", departmentId: req.params.id, isReady: 1 },
+      })
+      .then((value) => {
+        cnt = value.length;
+      });
+    if (cnt == 0) {
+      res.status(200).json({ message: "no doctor" });
+    } else {
+      const queue = await AppDataSource.getRepository(Queue).findOne({
+        where: { departmentId: req.params.id, status: "waiting" },
+        order: { queueNumber: "ASC" },
+      });
+      queue.status = "called";
+      await AppDataSource.getRepository(Queue).save(queue);
+      const doc = await AppDataSource.getRepository(User).findOne({
+        where: { departmentId: req.params.id, role: "doctor", isReady: 1 },
+      });
+      doc.check = queue.queueNumber;
+      doc.isReady = 0;
+      await AppDataSource.getRepository(User).save(doc);
+      res.status(200).json({ queue, doc });
+    }
   }
 
   async getQueueInfoByToken(req: Request, res: Response, next: NextFunction) {
@@ -84,16 +96,10 @@ export default class DepartmentController {
   }
 
   async skip(req: Request, res: Response, next: NextFunction) {
-    const queuenum = await AppDataSource.getRepository(Variable)
-      .findOne({ where: { name: "queue" } })
-      .then((value) => value.int);
     const queue = await AppDataSource.getRepository(Queue).findOne({
-      where: { queueNumber: queuenum },
+      where: { departmentId: req.params.id, status: "waiting" },
+      order: { queueNumber: "ASC" },
     });
-    await AppDataSource.getRepository(Variable).update(
-      { name: "queue" },
-      { int: queuenum + 1 }
-    );
     queue.status = "skip";
     await AppDataSource.getRepository(Queue).save(queue);
     res.status(200).json(queue);
@@ -107,10 +113,59 @@ export default class DepartmentController {
   }
 
   async callSkip(req: Request, res: Response, next: NextFunction) {
+    let { departmentId, queueNumber } = req.body;
+    let cnt;
+    await AppDataSource.getRepository(User)
+      .find({
+        where: { role: "doctor", departmentId: req.params.id, isReady: 1 },
+      })
+      .then((value) => {
+        cnt = value.length;
+      });
+    if (cnt == 0) {
+      res.status(200).json({ message: "no doctor" });
+    } else {
+      const queue = await AppDataSource.getRepository(Queue).findOne({
+        where: {
+          departmentId: departmentId,
+          queueNumber: queueNumber,
+        },
+      });
+      if (queue.status != "skip") {
+        res.status(200).json({ message: "this queue not skip" });
+      }
+      queue.status = "called";
+      await AppDataSource.getRepository(Queue).save(queue);
+      const doc = await AppDataSource.getRepository(User).findOne({
+        where: { departmentId: req.params.id, role: "doctor", isReady: 1 },
+      });
+      doc.check = queue.queueNumber;
+      doc.isReady = 0;
+      await AppDataSource.getRepository(User).save(doc);
+      res.status(200).json({ queue, doc });
+    }
+  }
+
+  async move(req: Request, res: Response, next: NextFunction) {
+    let { departmentId, queueNumber, newDepartmentId } = req.body;
     const queue = await AppDataSource.getRepository(Queue).findOne({
-      where: { status: "skip" },
-      order: { queueNumber: "ASC" },
+      where: { queueNumber: queueNumber },
     });
+    queue.status = "waiting";
+    queue.departmentId = newDepartmentId;
+    await AppDataSource.getRepository(Queue).save(queue);
+    const doc = await AppDataSource.getRepository(User).findOne({
+      where: {
+        departmentId: departmentId,
+        role: "doctor",
+        isReady: 0,
+        check: queueNumber,
+      },
+    });
+    doc.check = 0;
+    doc.isReady = 1;
+    await AppDataSource.getRepository(User).save(doc);
+    res.status(200).json(queue);
   }
 
   async reset(req: Request, res: Response, next: NextFunction) {
@@ -123,5 +178,6 @@ export default class DepartmentController {
       { int: 1 }
     );
     await AppDataSource.getRepository(Queue).delete({});
+    res.status(200).json({ message: "reset success" });
   }
 }
