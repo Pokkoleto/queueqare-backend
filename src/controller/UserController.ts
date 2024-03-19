@@ -37,11 +37,10 @@ export default class UserController {
     response: Response,
     next: NextFunction
   ) {
-    console.log("getActiveUser");
     const user = await AppDataSource.getRepository(User).find({
       where: { isActive: 1 },
     });
-    console.log(user);
+
     response.status(200).json(user);
   }
 

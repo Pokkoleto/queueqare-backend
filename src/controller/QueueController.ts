@@ -28,6 +28,7 @@ export default class DepartmentController {
   }
 
   async add(req: Request, res: Response, next: NextFunction) {
+    let { tel } = req.body;
     const defaultDepartment = await AppDataSource.getRepository(
       Department
     ).findOne({ where: { isDefault: 1 } });
@@ -48,6 +49,9 @@ export default class DepartmentController {
     info.queueNumber = await AppDataSource.getRepository(Variable)
       .findOne({ where: { name: "last" } })
       .then((value) => value.int);
+    if (tel != null) {
+      info.tel = tel;
+    }
     await AppDataSource.getRepository(Variable).update(
       { name: "last" },
       { int: info.queueNumber + 1 }
@@ -72,15 +76,19 @@ export default class DepartmentController {
         where: { departmentId: req.params.id, status: "waiting" },
         order: { queueNumber: "ASC" },
       });
-      queue.status = "called";
-      await AppDataSource.getRepository(Queue).save(queue);
-      const doc = await AppDataSource.getRepository(User).findOne({
-        where: { departmentId: req.params.id, role: "doctor", isReady: 1 },
-      });
-      doc.check = queue.queueNumber;
-      doc.isReady = 0;
-      await AppDataSource.getRepository(User).save(doc);
-      res.status(200).json({ queue, doc });
+      if (queue != null) {
+        queue.status = "called";
+        await AppDataSource.getRepository(Queue).save(queue);
+        const doc = await AppDataSource.getRepository(User).findOne({
+          where: { departmentId: req.params.id, role: "doctor", isReady: 1 },
+        });
+        doc.check = queue.queueNumber;
+        doc.isReady = 0;
+        await AppDataSource.getRepository(User).save(doc);
+        res.status(200).json({ queue, doc });
+      } else {
+        res.status(200).json({ message: "no queue" });
+      }
     }
   }
 
