@@ -9,6 +9,7 @@ import UserController from "./UserController";
 import { User } from "../entity/User";
 import { Queue } from "../entity/Queue";
 import { Variable } from "../entity/Variable";
+import { LessThan } from "typeorm";
 
 export default class DepartmentController {
   async all(request: Request, response: Response, next: NextFunction) {
@@ -99,7 +100,14 @@ export default class DepartmentController {
     const temp = await AppDataSource.getRepository(Variable).findOne({
       where: { name: "queue" },
     });
-    const add = { queueBefore: queue.queueNumber - temp.int };
+    const cnt = await AppDataSource.getRepository(Queue).count({
+      where: {
+        departmentId: queue.departmentId,
+        status: "waiting",
+        queueNumber: LessThan(queue.queueNumber),
+      },
+    });
+    const add = { queueBefore: cnt };
     res.status(200).json({ ...queue, ...add });
   }
 
